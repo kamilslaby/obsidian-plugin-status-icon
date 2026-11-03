@@ -1,7 +1,7 @@
 {
 	"id": "status-icon",
 	"name": "Status Icon",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"minAppVersion": "1.13.0",
 	"description": "Adds an icons (emojis) to the filename based on the 'status' property of the file.",
 	"author": "Kamil Slaby & Superior",

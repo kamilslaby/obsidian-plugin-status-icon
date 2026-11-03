@@ -49,7 +49,7 @@ export default class StatusEmojiPlugin extends Plugin {
 	private async updateName(file: TFile, status: unknown) {
 		if (file.extension !== "md" || this.busy.has(file)) return;
 
-		const value = Array.isArray(status) ? status[0] : status;
+		const value: unknown = Array.isArray(status) ? (status as unknown[])[0] : status;
 		if (typeof value !== "string") return;
 
 		const emoji = this.emojiFor(value);

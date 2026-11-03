@@ -1,4 +1,5 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, Modal, Notice, PluginSettingTab, Setting } from "obsidian";
+import type { SettingDefinitionItem } from "obsidian";
 import type StatusEmojiPlugin from "./main";
 
 export interface StatusMapping {
@@ -19,6 +20,69 @@ export const DEFAULT_SETTINGS: StatusEmojiSettings = {
 	],
 };
 
+/** Form modal for adding or editing one keyword/emoji pair. */
+class MappingModal extends Modal {
+	private keyword: string;
+	private emoji: string;
+
+	constructor(
+		app: App,
+		initial: StatusMapping,
+		private onSubmit: (mapping: StatusMapping) => void
+	) {
+		super(app);
+		this.keyword = initial.keyword;
+		this.emoji = initial.emoji;
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		this.setTitle("Status mapping");
+
+		new Setting(contentEl)
+			.setName("Keyword")
+			.setDesc("Matched against the status property, ignoring case.")
+			.addText((text) =>
+				text.setValue(this.keyword).onChange((value) => {
+					this.keyword = value;
+				})
+			);
+
+		new Setting(contentEl)
+			.setName("Emoji")
+			.setDesc("Added to the start of the file name.")
+			.addText((text) =>
+				text.setValue(this.emoji).onChange((value) => {
+					this.emoji = value;
+				})
+			);
+
+		new Setting(contentEl)
+			.addButton((btn) =>
+				btn
+					.setButtonText("Save")
+					.setCta()
+					.onClick(() => this.submit())
+			)
+			.addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close()));
+	}
+
+	onClose() {
+		this.contentEl.empty();
+	}
+
+	private submit() {
+		const keyword = this.keyword.trim();
+		const emoji = this.emoji.trim();
+		if (!keyword || !emoji) {
+			new Notice("Enter both a keyword and an emoji.");
+			return;
+		}
+		this.onSubmit({ keyword, emoji });
+		this.close();
+	}
+}
+
 export class StatusEmojiSettingTab extends PluginSettingTab {
 	plugin: StatusEmojiPlugin;
 
@@ -27,59 +91,46 @@ export class StatusEmojiSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
-	display(): void {
-		const { containerEl } = this;
-		containerEl.empty();
-
-		new Setting(containerEl)
-			.setName("Status emoji mappings")
-			.setDesc(
-				"When the status property matches a keyword, the note's file name gets the emoji as a prefix. Matching ignores case."
-			)
-			.setHeading();
-
-		this.plugin.settings.mappings.forEach((mapping, index) => {
-			new Setting(containerEl)
-				.addText((text) =>
-					text
-						.setPlaceholder("Keyword")
-						.setValue(mapping.keyword)
-						.onChange(async (value) => {
-							mapping.keyword = value;
-							await this.plugin.saveSettings();
-						})
-				)
-				.addText((text) => {
-					text
-						.setPlaceholder("Emoji")
-						.setValue(mapping.emoji)
-						.onChange(async (value) => {
-							mapping.emoji = value.trim();
-							await this.plugin.saveSettings();
-						});
-					text.inputEl.size = 4;
-				})
-				.addExtraButton((btn) =>
-					btn
-						.setIcon("trash")
-						.setTooltip("Delete mapping")
-						.onClick(async () => {
-							this.plugin.settings.mappings.splice(index, 1);
-							await this.plugin.saveSettings();
-							this.display();
-						})
-				);
-		});
-
-		new Setting(containerEl).addButton((btn) =>
-			btn
-				.setButtonText("Add mapping")
-				.setCta()
-				.onClick(async () => {
-					this.plugin.settings.mappings.push({ keyword: "", emoji: "" });
+	getSettingDefinitions(): SettingDefinitionItem[] {
+		return [
+			{
+				name: "Status keywords",
+				desc: "When the status property matches a keyword, the note's file name gets that emoji as a prefix.",
+			},
+			{
+				type: "list",
+				heading: "Mappings",
+				emptyState: "No mappings yet.",
+				addItem: {
+					name: "Add mapping",
+					action: () => this.editMapping(null),
+				},
+				onDelete: async (index) => {
+					this.plugin.settings.mappings.splice(index, 1);
 					await this.plugin.saveSettings();
-					this.display();
-				})
-		);
+					this.update();
+				},
+				items: this.plugin.settings.mappings.map((mapping) => ({
+					name: `${mapping.emoji}  ${mapping.keyword}`,
+					searchable: false,
+					action: (_el: HTMLElement, index: number) => this.editMapping(index),
+				})),
+			},
+		];
+	}
+
+	private editMapping(index: number | null) {
+		const existing = index === null ? undefined : this.plugin.settings.mappings[index];
+		const initial: StatusMapping = {
+			keyword: existing?.keyword ?? "",
+			emoji: existing?.emoji ?? "",
+		};
+
+		new MappingModal(this.app, initial, (result) => {
+			const list = this.plugin.settings.mappings;
+			if (index === null) list.push(result);
+			else list[index] = result;
+			void this.plugin.saveSettings().then(() => this.update());
+		}).open();
 	}
 }

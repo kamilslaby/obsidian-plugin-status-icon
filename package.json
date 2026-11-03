@@ -16,7 +16,7 @@
 		"@types/node": "^22.15.17",
 		"esbuild": "0.25.5",
 		"jiti": "^2.6.1",
-		"obsidian": "latest",
+		"obsidian": "^1.14.4",
 		"typescript": "^5.8.3"
 	},
 	"allowScripts": {
